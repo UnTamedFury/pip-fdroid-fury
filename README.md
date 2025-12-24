@@ -12,14 +12,14 @@ To use this cache in your GitHub Actions workflows, add the following steps:
   id: get_release
   uses: oprypin/find-latest-tag@v1
   with:
-    repository: UnTamedFury/pip-fdroid-repo
+    repository: UnTamedFury/pip-fdroid-fury
     releases-only: true
 
 - name: Download pip cache
   run: |
     RELEASE_TAG=${{ steps.get_release.outputs.tag }}
-    curl -L -o pip-cache.tar.gz https://github.com/UnTamedFury/pip-fdroid-repo/releases/download/$RELEASE_TAG/pip-cache.tar.gz
-    curl -L -o pip-cache.tar.gz.sha256 https://github.com/UnTamedFury/pip-fdroid-repo/releases/download/$RELEASE_TAG/pip-cache.tar.gz.sha256
+    curl -L -o pip-cache.tar.gz https://github.com/UnTamedFury/pip-fdroid-fury/releases/download/$RELEASE_TAG/pip-cache.tar.gz
+    curl -L -o pip-cache.tar.gz.sha256 https://github.com/UnTamedFury/pip-fdroid-fury/releases/download/$RELEASE_TAG/pip-cache.tar.gz.sha256
     sha256sum -c pip-cache.tar.gz.sha256
 
 - name: Install from cache
