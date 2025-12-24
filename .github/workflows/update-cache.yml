@@ -1,0 +1,86 @@
+name: Update Pip Cache
+
+on:
+  schedule:
+    - cron: '0 6 */10 * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'requirements.txt'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          
+      - name: Install dependencies
+        run: |
+          pip install --user -r requirements.txt
+          
+      - name: Locate and Archive Cache
+        id: archive
+        run: |
+          SITE_PACKAGES=$(python -m site --user-site)
+          echo "Site packages at: $SITE_PACKAGES"
+          # Ensure directory exists (it might be empty if requirements is empty)
+          mkdir -p "$SITE_PACKAGES"
+          tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
+          echo "cache_path=pip-cache.tar.gz" >> $GITHUB_OUTPUT
+          
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-cache
+          path: pip-cache.tar.gz
+
+      - name: Generate Tag
+        id: tag
+        run: echo "tag_name=cache-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          files: pip-cache.tar.gz
+          body: "Pip cache update for $(date +'%Y-%m-%d')"
+          make_latest: true
+          
+  test-cache:
+    needs: build-and-cache
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pip-cache
+          path: .
+          
+      - name: Restore Cache
+        run: |
+          SITE_PACKAGES=$(python -m site --user-site)
+          mkdir -p "$SITE_PACKAGES"
+          tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
+          echo "Restored cache to $SITE_PACKAGES"
+          ls -F "$SITE_PACKAGES"
+          
+      - name: Verify Dependencies
+        run: |
+          export PYTHONPATH=$(python -m site --user-site)
+          python -c "import requests; print('Requests imported successfully')"
+          python -c "import fdroidserver; print('fdroidserver imported successfully')"

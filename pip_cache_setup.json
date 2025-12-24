@@ -1,0 +1,110 @@
+{
+  "pip_cache_setup": {
+    "description": "Configuration for external pip cache repository to optimize GitHub Actions workflows",
+    "purpose": "Store and manage pip dependencies externally to avoid repeated downloads and installations in workflows",
+    "repository_setup": {
+      "name": "fury-pip-cache",
+      "visibility": "public",
+      "description": "External pip cache repository for fury-froid-repo workflows",
+      "initial_files": [
+        "requirements.txt",
+        ".gitignore",
+        "README.md",
+        "cache_versions.json"
+      ]
+    },
+    "cache_mechanism": {
+      "type": "external_repository",
+      "frequency": "every_10_days_or_on_demand",
+      "trigger": [
+        "scheduled_update",
+        "manual_dispatch",
+        "requirements_change_detection"
+      ]
+    },
+    "requirements_tracking": {
+      "source_repo": "UnTamed-Fury/FDroid--repo",
+      "tracked_files": [
+        "requirements.txt",
+        "scripts/requirements.txt",
+        "app_requirements.txt"
+      ],
+      "update_conditions": [
+        "changes_in_requirements_file",
+        "scheduled_refresh",
+        "manual_trigger"
+      ]
+    },
+    "caching_process": {
+      "steps": [
+        {
+          "step": 1,
+          "name": "Checkout source repository",
+          "action": "actions/checkout@v4"
+        },
+        {
+          "step": 2,
+          "name": "Set up Python",
+          "action": "actions/setup-python@v5",
+          "with": {
+            "python-version": "3.12"
+          }
+        },
+        {
+          "step": 3,
+          "name": "Install dependencies",
+          "command": "pip install -r requirements.txt"
+        },
+        {
+          "step": 4,
+          "name": "Create cache archive",
+          "command": "tar -czf pip-cache.tar.gz -C $(python -m site --user-site) ."
+        },
+        {
+          "step": 5,
+          "name": "Upload cache to external repo",
+          "action": "upload_cache_action",
+          "destination": "pip-cache-repo-url"
+        }
+      ]
+    },
+    "workflow_integration": {
+      "target_repo": "UnTamed-Fury/FDroid--repo",
+      "affected_workflows": [
+        "update-repo.yml",
+        "update-icons.yml",
+        "test-pre-release.yml"
+      ],
+      "integration_steps": [
+        {
+          "step": 1,
+          "description": "Download pip cache from external repository at start of workflow"
+        },
+        {
+          "step": 2,
+          "description": "Extract and install dependencies from cache instead of installing from PyPI"
+        },
+        {
+          "step": 3,
+          "description": "Fall back to normal pip install if cache is outdated or unavailable"
+        }
+      ]
+    },
+    "update_schedule": {
+      "cron_expression": "0 6 */10 * *",
+      "description": "Runs every 10 days at 6:00 UTC",
+      "backup_trigger": "workflow_dispatch"
+    },
+    "security_considerations": [
+      "Ensure cache repository has appropriate access controls",
+      "Verify integrity of cached packages before installation",
+      "Implement checksum validation for cache archives"
+    ],
+    "performance_benefits": [
+      "Reduced workflow execution time",
+      "Lower bandwidth usage",
+      "More reliable builds due to reduced external dependencies",
+      "Faster CI/CD pipeline"
+    ]
+  }
+}
