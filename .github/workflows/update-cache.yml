@@ -34,13 +34,16 @@ jobs:
           # Ensure directory exists (it might be empty if requirements is empty)
           mkdir -p "$SITE_PACKAGES"
           tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
+          sha256sum pip-cache.tar.gz > pip-cache.tar.gz.sha256
           echo "cache_path=pip-cache.tar.gz" >> $GITHUB_OUTPUT
           
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: pip-cache
-          path: pip-cache.tar.gz
+          path: |
+            pip-cache.tar.gz
+            pip-cache.tar.gz.sha256
 
       - name: Generate Tag
         id: tag
@@ -50,7 +53,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
-          files: pip-cache.tar.gz
+          files: |
+            pip-cache.tar.gz
+            pip-cache.tar.gz.sha256
           body: "Pip cache update for $(date +'%Y-%m-%d')"
           make_latest: true
           
@@ -71,6 +76,9 @@ jobs:
           name: pip-cache
           path: .
           
+      - name: Verify Checksum
+        run: sha256sum -c pip-cache.tar.gz.sha256
+
       - name: Restore Cache
         run: |
           SITE_PACKAGES=$(python -m site --user-site)

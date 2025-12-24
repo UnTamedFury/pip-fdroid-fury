@@ -17,7 +17,10 @@ To use this cache in your GitHub Actions workflows, add the following steps:
 
 - name: Download pip cache
   run: |
-    curl -L -o pip-cache.tar.gz https://github.com/UnTamedFury/pip-fdroid-repo/releases/download/${{ steps.get_release.outputs.tag }}/pip-cache.tar.gz
+    RELEASE_TAG=${{ steps.get_release.outputs.tag }}
+    curl -L -o pip-cache.tar.gz https://github.com/UnTamedFury/pip-fdroid-repo/releases/download/$RELEASE_TAG/pip-cache.tar.gz
+    curl -L -o pip-cache.tar.gz.sha256 https://github.com/UnTamedFury/pip-fdroid-repo/releases/download/$RELEASE_TAG/pip-cache.tar.gz.sha256
+    sha256sum -c pip-cache.tar.gz.sha256
 
 - name: Install from cache
   run: |
