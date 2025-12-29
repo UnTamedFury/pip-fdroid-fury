@@ -23,16 +23,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      # Install only cache-safe dependencies (NO fdroidserver)
-      - name: Install clean cache deps
+      - name: Install cache deps (NO system deps, NO fdroidserver)
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "📌 Installing to site-packages: $SITE_PACKAGES"
+          echo "Installing to: $SITE_PACKAGES"
 
-          # Remove unwanted chain dependencies if they sneak in
           pip uninstall -y numpy matplotlib ipython lxml fonttools contourpy kiwisolver >/dev/null 2>&1 || true
 
-          # Install dependencies directly into cache target dir
           pip install --no-deps --no-warn-script-location --target "$SITE_PACKAGES" \
             requests \
             PyYAML \
@@ -42,7 +39,7 @@ jobs:
             yamllint \
             androguard==3.3.5
 
-          echo "📦 Cached packages:"
+          echo "Cached packages:"
           ls -l "$SITE_PACKAGES"
 
       - name: Archive pip cache
@@ -51,7 +48,7 @@ jobs:
           tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
           sha256sum pip-cache.tar.gz > pip-cache.tar.gz.sha256
 
-      - name: Store artifact
+      - name: Upload cache artifact
         uses: actions/upload-artifact@v4
         with:
           name: pip-cache
@@ -59,7 +56,7 @@ jobs:
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
 
-      - name: Generate timestamped tag
+      - name: Generate timestamp tag
         run: echo "TAG=cache-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
 
       - name: Create GitHub Release
@@ -70,8 +67,9 @@ jobs:
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
           make_latest: true
-          overwrite: true
           body: "Pip cache update @ $(date +"%Y-%m-%d %H:%M:%S")"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 
   test-cache:
@@ -85,7 +83,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download pip-cache artifact
+      - name: Download cache
         uses: actions/download-artifact@v4
         with:
           name: pip-cache
@@ -94,13 +92,13 @@ jobs:
       - name: Verify checksum
         run: sha256sum -c pip-cache.tar.gz.sha256
 
-      - name: Restore cache
+      - name: Restore cache to correct path
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           mkdir -p "$SITE_PACKAGES"
           tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
           echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
-          echo "$SITE_PACKAGES added to PYTHONPATH"
+          echo "📌 Restored to $SITE_PACKAGES"
 
       - name: Validate imports
         run: |
@@ -113,4 +111,4 @@ jobs:
           python -c "import yamllint; print('✓ yamllint OK')"
 
       - name: Summary
-        run: echo "🚀 Pip cache build & verification completed!"
+        run: echo "🚀 Cache build & restore finished successfully"
