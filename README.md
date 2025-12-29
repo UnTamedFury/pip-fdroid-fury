@@ -1,6 +1,6 @@
 # Fury Pip Cache
 
-External pip cache repository for fury-fdroid-repo workflows.
+External pip cache repository for fury-fdroid workflows.
 This repository automates the caching of pip dependencies to speed up CI/CD pipelines.
 
 ## Usage in Workflows
