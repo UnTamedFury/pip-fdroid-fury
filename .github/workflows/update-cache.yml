@@ -23,7 +23,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      # IMPORTANT: install only cache-safe deps (NO fdroidserver)
       - name: Install clean cache deps
         run: |
           # determine target cache dir (main Python site-packages)
