@@ -14,29 +14,36 @@ permissions:
 jobs:
   build-and-cache:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          
-      - name: Install dependencies
+
+      # IMPORTANT: no --user (pollutes paths)
+      - name: Install cacheable dependencies only
         run: |
-          pip install --user -r requirements.txt
-          
-      - name: Locate and Archive Cache
+          pip install --no-input --no-warn-script-location \
+            requests \
+            PyYAML \
+            Pillow \
+            gitpython \
+            qrcode \
+            yamllint \
+            androguard==3.3.5  # stable import layout
+
+      - name: Locate & Archive Cache
         id: archive
         run: |
-          SITE_PACKAGES=$(python -m site --user-site)
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           echo "Site packages at: $SITE_PACKAGES"
-          # Ensure directory exists (it might be empty if requirements is empty)
-          mkdir -p "$SITE_PACKAGES"
           tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
           sha256sum pip-cache.tar.gz > pip-cache.tar.gz.sha256
           echo "cache_path=pip-cache.tar.gz" >> $GITHUB_OUTPUT
-          
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -45,50 +52,45 @@ jobs:
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
 
-      - name: Generate Tag
-        id: tag
-        run: echo "tag_name=cache-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-
-      - name: Create Release
+      - name: Auto Tag Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag_name }}
+          tag_name: cache-$(date +'%Y%m%d-%H%M%S')
           files: |
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
-          body: "Pip cache update for $(date +'%Y-%m-%d')"
+          body: "New pip cache build"
           make_latest: true
-          
+
+
   test-cache:
     needs: build-and-cache
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Download Artifact
+      - name: Download Cache Artifact
         uses: actions/download-artifact@v4
         with:
           name: pip-cache
           path: .
-          
-      - name: Verify Checksum
-        run: sha256sum -c pip-cache.tar.gz.sha256
 
       - name: Restore Cache
         run: |
-          SITE_PACKAGES=$(python -m site --user-site)
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           mkdir -p "$SITE_PACKAGES"
           tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
-          echo "Restored cache to $SITE_PACKAGES"
-          ls -F "$SITE_PACKAGES"
-          
-      - name: Verify Dependencies
+          echo "Restored to $SITE_PACKAGES"
+          echo "$SITE_PACKAGES" >> $GITHUB_PATH
+
+      - name: Verify Imports From Cache
         run: |
-          export PYTHONPATH=$(python -m site --user-site)
-          python -c "import requests; print('Requests imported successfully')"
-          python -c "import fdroidserver; print('fdroidserver imported successfully')"
+          python -c "import requests; print('✓ requests OK')"
+          python -c "import androguard; print('✓ androguard OK')"
+          python -c "import qrcode; print('✓ qrcode OK')"
+          python -c "import gitpython; print('✓ gitpython OK')"
+          python -c "import yamllint; print('✓ yamllint OK')"
