@@ -1,2 +1,7 @@
 requests
-fdroidserver
+PyYAML
+Pillow
+androguard==3.4.0
+qrcode
+yamllint
+gitpython
