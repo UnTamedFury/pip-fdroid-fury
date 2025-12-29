@@ -23,13 +23,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install cache deps (NO system deps, NO fdroidserver)
+      - name: Install cache dependencies
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "Installing to: $SITE_PACKAGES"
-
           pip uninstall -y numpy matplotlib ipython lxml fonttools contourpy kiwisolver >/dev/null 2>&1 || true
-
           pip install --no-deps --no-warn-script-location --target "$SITE_PACKAGES" \
             requests \
             PyYAML \
@@ -38,9 +35,6 @@ jobs:
             qrcode \
             yamllint \
             androguard==3.3.5
-
-          echo "Cached packages:"
-          ls -l "$SITE_PACKAGES"
 
       - name: Archive pip cache
         run: |
@@ -56,8 +50,10 @@ jobs:
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
 
-      - name: Generate timestamp tag
-        run: echo "TAG=cache-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+      - name: Set Release Metadata
+        run: |
+          echo "TAG=cache-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+          echo "BODY=Pip cache update @ $(date +%Y-%m-%d_%H:%M:%S)" >> $GITHUB_ENV
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -66,11 +62,10 @@ jobs:
           files: |
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
+          body: ${{ env.BODY }}
           make_latest: true
-          body: "Pip cache update @ $(date +"%Y-%m-%d %H:%M:%S")"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
   test-cache:
     needs: build-and-cache
@@ -92,23 +87,22 @@ jobs:
       - name: Verify checksum
         run: sha256sum -c pip-cache.tar.gz.sha256
 
-      - name: Restore cache to correct path
+      - name: Restore cache
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           mkdir -p "$SITE_PACKAGES"
           tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
           echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
-          echo "📌 Restored to $SITE_PACKAGES"
 
       - name: Validate imports
         run: |
-          python -c "import requests; print('✓ requests OK')"
-          python -c "import PyYAML; print('✓ PyYAML OK')"
-          python -c "import PIL; print('✓ Pillow OK')"
-          python -c "import androguard; print('✓ androguard OK')"
-          python -c "import git; print('✓ gitpython OK')"
-          python -c "import qrcode; print('✓ qrcode OK')"
-          python -c "import yamllint; print('✓ yamllint OK')"
+          python -c "import requests"
+          python -c "import PyYAML"
+          python -c "import PIL"
+          python -c "import androguard"
+          python -c "import git"
+          python -c "import qrcode"
+          python -c "import yamllint"
 
       - name: Summary
-        run: echo "🚀 Cache build & restore finished successfully"
+        run: echo "Cache pipeline completed"
