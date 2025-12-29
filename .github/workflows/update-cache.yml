@@ -23,17 +23,17 @@ jobs:
         with:
           python-version: "3.12"
 
+      # Install only cache-safe dependencies (NO fdroidserver)
       - name: Install clean cache deps
         run: |
-          # determine target cache dir (main Python site-packages)
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "📌 Caching into: $SITE_PACKAGES"
-          
-          # remove dependency pollution
-          pip uninstall -y numpy matplotlib ipython lxml fonttools contourpy kiwisolver 2>/dev/null || true
-          
-          # install ONLY pure Python deps, pinned and stable
-          pip install --no-deps --no-input --target "$SITE_PACKAGES" \
+          echo "📌 Installing to site-packages: $SITE_PACKAGES"
+
+          # Remove unwanted chain dependencies if they sneak in
+          pip uninstall -y numpy matplotlib ipython lxml fonttools contourpy kiwisolver >/dev/null 2>&1 || true
+
+          # Install dependencies directly into cache target dir
+          pip install --no-deps --no-warn-script-location --target "$SITE_PACKAGES" \
             requests \
             PyYAML \
             Pillow \
@@ -42,7 +42,8 @@ jobs:
             yamllint \
             androguard==3.3.5
 
-          ls -R "$SITE_PACKAGES"
+          echo "📦 Cached packages:"
+          ls -l "$SITE_PACKAGES"
 
       - name: Archive pip cache
         run: |
@@ -50,7 +51,7 @@ jobs:
           tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
           sha256sum pip-cache.tar.gz > pip-cache.tar.gz.sha256
 
-      - name: Upload cache artifact
+      - name: Store artifact
         uses: actions/upload-artifact@v4
         with:
           name: pip-cache
@@ -58,15 +59,19 @@ jobs:
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
 
-      - name: Tag release
+      - name: Generate timestamped tag
+        run: echo "TAG=cache-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: cache-$(date +'%Y%m%d-%H%M%S')
+          tag_name: ${{ env.TAG }}
           files: |
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
           make_latest: true
-          body: "Updated pip cache build."
+          overwrite: true
+          body: "Pip cache update @ $(date +"%Y-%m-%d %H:%M:%S")"
 
 
   test-cache:
@@ -75,11 +80,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Download cache
+      - name: Download pip-cache artifact
         uses: actions/download-artifact@v4
         with:
           name: pip-cache
@@ -88,18 +94,23 @@ jobs:
       - name: Verify checksum
         run: sha256sum -c pip-cache.tar.gz.sha256
 
-      - name: Restore cache properly
+      - name: Restore cache
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           mkdir -p "$SITE_PACKAGES"
           tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
           echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
-          echo "$SITE_PACKAGES added to env"
+          echo "$SITE_PACKAGES added to PYTHONPATH"
 
       - name: Validate imports
         run: |
           python -c "import requests; print('✓ requests OK')"
+          python -c "import PyYAML; print('✓ PyYAML OK')"
+          python -c "import PIL; print('✓ Pillow OK')"
           python -c "import androguard; print('✓ androguard OK')"
-          python -c "import qrcode; print('✓ qrcode OK')"
           python -c "import git; print('✓ gitpython OK')"
+          python -c "import qrcode; print('✓ qrcode OK')"
           python -c "import yamllint; print('✓ yamllint OK')"
+
+      - name: Summary
+        run: echo "🚀 Pip cache build & verification completed!"
