@@ -2,11 +2,11 @@ name: Update Pip Cache
 
 on:
   schedule:
-    - cron: '0 6 */10 * *'
+    - cron: "0 6 */10 * *"
   workflow_dispatch:
   push:
     paths:
-      - 'requirements.txt'
+      - "requirements.txt"
 
 permissions:
   contents: write
@@ -21,30 +21,37 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      # IMPORTANT: no --user (pollutes paths)
-      - name: Install cacheable dependencies only
+      # IMPORTANT: install only cache-safe deps (NO fdroidserver)
+      - name: Install clean cache deps
         run: |
-          pip install --no-input --no-warn-script-location \
+          # determine target cache dir (main Python site-packages)
+          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          echo "📌 Caching into: $SITE_PACKAGES"
+          
+          # remove dependency pollution
+          pip uninstall -y numpy matplotlib ipython lxml fonttools contourpy kiwisolver 2>/dev/null || true
+          
+          # install ONLY pure Python deps, pinned and stable
+          pip install --no-deps --no-input --target "$SITE_PACKAGES" \
             requests \
             PyYAML \
             Pillow \
             gitpython \
             qrcode \
             yamllint \
-            androguard==3.3.5  # stable import layout
+            androguard==3.3.5
 
-      - name: Locate & Archive Cache
-        id: archive
+          ls -R "$SITE_PACKAGES"
+
+      - name: Archive pip cache
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
-          echo "Site packages at: $SITE_PACKAGES"
           tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
           sha256sum pip-cache.tar.gz > pip-cache.tar.gz.sha256
-          echo "cache_path=pip-cache.tar.gz" >> $GITHUB_OUTPUT
 
-      - name: Upload Artifact
+      - name: Upload cache artifact
         uses: actions/upload-artifact@v4
         with:
           name: pip-cache
@@ -52,15 +59,15 @@ jobs:
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
 
-      - name: Auto Tag Release
+      - name: Tag release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: cache-$(date +'%Y%m%d-%H%M%S')
           files: |
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
-          body: "New pip cache build"
           make_latest: true
+          body: "Updated pip cache build."
 
 
   test-cache:
@@ -71,26 +78,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      - name: Download Cache Artifact
+      - name: Download cache
         uses: actions/download-artifact@v4
         with:
           name: pip-cache
           path: .
 
-      - name: Restore Cache
+      - name: Verify checksum
+        run: sha256sum -c pip-cache.tar.gz.sha256
+
+      - name: Restore cache properly
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           mkdir -p "$SITE_PACKAGES"
           tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
-          echo "Restored to $SITE_PACKAGES"
-          echo "$SITE_PACKAGES" >> $GITHUB_PATH
+          echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
+          echo "$SITE_PACKAGES added to env"
 
-      - name: Verify Imports From Cache
+      - name: Validate imports
         run: |
           python -c "import requests; print('✓ requests OK')"
           python -c "import androguard; print('✓ androguard OK')"
           python -c "import qrcode; print('✓ qrcode OK')"
-          python -c "import gitpython; print('✓ gitpython OK')"
+          python -c "import git; print('✓ gitpython OK')"
           python -c "import yamllint; print('✓ yamllint OK')"
