@@ -87,14 +87,14 @@ jobs:
           tar -xzf pip-cache.tar.gz -C "$SITE_PACKAGES"
           echo "PYTHONPATH=$SITE_PACKAGES" >> $GITHUB_ENV
 
-      - name: Validate imports
-        run: |
-          python -c "import requests"
-          python -c "import PyYAML"
-          python -c "import PIL"
-          python -c "import androguard"
-          python -c "import git"
-          python -c "import qrcode"
-          python -c "import yamllint"
+     - name: Validate imports
+  run: |
+    python -c "import requests"
+    python -c "import yaml"
+    python -c "import PIL"
+    python -c "import androguard"
+    python -c "import git"
+    python -c "import qrcode"
+    python -c "import yamllint"
 
       - run: echo "Cache pipeline completed"
