@@ -18,8 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -27,7 +26,7 @@ jobs:
         run: |
           SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
           pip uninstall -y numpy matplotlib ipython lxml fonttools contourpy kiwisolver >/dev/null 2>&1 || true
-          pip install --no-deps --no-warn-script-location --target "$SITE_PACKAGES" \
+          pip install --target "$SITE_PACKAGES" \
             requests \
             PyYAML \
             Pillow \
@@ -35,28 +34,23 @@ jobs:
             qrcode \
             yamllint \
             androguard==3.3.5
-
-      - name: Archive pip cache
-        run: |
-          SITE_PACKAGES=$(python -c "import site; print(site.getsitepackages()[0])")
+          mkdir -p site-cache
           tar -czf pip-cache.tar.gz -C "$SITE_PACKAGES" .
           sha256sum pip-cache.tar.gz > pip-cache.tar.gz.sha256
 
-      - name: Upload cache artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: pip-cache
           path: |
             pip-cache.tar.gz
             pip-cache.tar.gz.sha256
 
-      - name: Set Release Metadata
+      - name: Set release metadata
         run: |
           echo "TAG=cache-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_ENV
           echo "BODY=Pip cache update @ $(date +%Y-%m-%d_%H:%M:%S)" >> $GITHUB_ENV
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
           files: |
@@ -78,8 +72,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Download cache
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           name: pip-cache
           path: .
@@ -104,5 +97,4 @@ jobs:
           python -c "import qrcode"
           python -c "import yamllint"
 
-      - name: Summary
-        run: echo "Cache pipeline completed"
+      - run: echo "Cache pipeline completed"
